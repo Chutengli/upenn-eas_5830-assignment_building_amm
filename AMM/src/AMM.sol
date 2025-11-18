@@ -52,47 +52,32 @@ contract AMM is AccessControl{
 		require( sellToken == tokenA || sellToken == tokenB, 'Invalid token' );
 		require( sellAmount > 0, 'Cannot trade 0' );
 		
-		// Get current balances
 		uint256 balanceA = ERC20(tokenA).balanceOf(address(this));
 		uint256 balanceB = ERC20(tokenB).balanceOf(address(this));
 		
-		// Calculate the amount after fees (fees are taken from deposit side)
-		// fee = feebps / 10000, so amount after fee = sellAmount * (1 - feebps/10000)
 		uint256 sellAmountAfterFee = sellAmount * (10000 - feebps) / 10000;
 		
 		address buyToken;
 		uint256 buyAmount;
 		
 		if( sellToken == tokenA ) {
-			// Selling tokenA, buying tokenB
 			buyToken = tokenB;
-			// Using constant product formula: (x + Δx') * (y - Δy) = x * y
-			// Solving for Δy: Δy = y - (x * y) / (x + Δx')
-			// where x = balanceA, y = balanceB, Δx' = sellAmountAfterFee
 			uint256 newBalanceA = balanceA + sellAmountAfterFee;
 			buyAmount = balanceB - (invariant / newBalanceA);
 		} else {
-			// Selling tokenB, buying tokenA
 			buyToken = tokenA;
-			// Using constant product formula: (x - Δx) * (y + Δy') = x * y
-			// Solving for Δx: Δx = x - (x * y) / (y + Δy')
-			// where x = balanceA, y = balanceB, Δy' = sellAmountAfterFee
 			uint256 newBalanceB = balanceB + sellAmountAfterFee;
 			buyAmount = balanceA - (invariant / newBalanceB);
 		}
 		
 		require( buyAmount > 0, 'Insufficient output amount' );
 		
-		// Transfer sellToken from user to contract
 		ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
 		
-		// Transfer buyToken from contract to user
 		ERC20(buyToken).transfer(msg.sender, buyAmount);
 		
-		// Emit Swap event
 		emit Swap( sellToken, buyToken, sellAmount, buyAmount );
 		
-		// Update invariant
 		uint256 new_invariant = ERC20(tokenA).balanceOf(address(this)) * ERC20(tokenB).balanceOf(address(this));
 		require( new_invariant >= invariant, 'Bad trade' );
 		invariant = new_invariant;
@@ -104,7 +89,6 @@ contract AMM is AccessControl{
 	function provideLiquidity( uint256 amtA, uint256 amtB ) public {
 		require( amtA > 0 || amtB > 0, 'Cannot provide 0 liquidity' );
 		
-		// Transfer tokens from sender to contract
 		if( amtA > 0 ) {
 			ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
 		}
@@ -112,7 +96,6 @@ contract AMM is AccessControl{
 			ERC20(tokenB).transferFrom(msg.sender, address(this), amtB);
 		}
 		
-		// If this is the first liquidity provision, set invariant and grant LP_ROLE
 		if( invariant == 0 ) {
 			uint256 balanceA = ERC20(tokenA).balanceOf(address(this));
 			uint256 balanceB = ERC20(tokenB).balanceOf(address(this));
@@ -120,7 +103,6 @@ contract AMM is AccessControl{
 			invariant = balanceA * balanceB;
 			_grantRole(LP_ROLE, msg.sender);
 		} else {
-			// Update invariant after additional liquidity
 			invariant = ERC20(tokenA).balanceOf(address(this)) * ERC20(tokenB).balanceOf(address(this));
 		}
 		
